@@ -282,13 +282,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Letakkan file dataset di salah satu lokasi berikut:
-
-- `data/diabetes_binary_5050split_health_indicators_BRFSS2015.csv`
-- root repository ini
-- folder parent dari repository ini
-
-5. Jalankan eksperimen.
+4. Jalankan eksperimen. Dataset sudah tersedia di folder `data/`.
 
 ```bash
 python src/run_experiments.py
