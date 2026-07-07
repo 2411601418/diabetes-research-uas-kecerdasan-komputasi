@@ -43,7 +43,10 @@ from sklearn.preprocessing import StandardScaler
 
 RANDOM_STATE = 42
 TARGET = "Diabetes_binary"
-DATASET_NAME = "diabetes_binary_5050split_health_indicators_BRFSS2015.csv"
+DATASET_NAME = "diabetes_012_health_indicators_BRFSS2015.csv"
+SOURCE_TARGET = "Diabetes_012"
+CROSS_DATASET_NAME = "diabetes_binary_5050split_health_indicators_BRFSS2015.csv"
+CROSS_TARGET = "Diabetes_binary"
 FEATURE_GROUPS = {
     "health_condition": ["HighBP", "HighChol", "Stroke", "HeartDiseaseorAttack", "DiffWalk", "GenHlth", "MentHlth", "PhysHlth"],
     "lifestyle": ["BMI", "Smoker", "PhysActivity", "Fruits", "Veggies", "HvyAlcoholConsump"],
@@ -87,6 +90,25 @@ def resolve_dataset_path(user_path: str | None) -> Path:
     raise FileNotFoundError(f"Dataset tidak ditemukan. Lokasi yang dicek:\n{checked}")
 
 
+def resolve_cross_dataset_path(user_path: str | None = None) -> Path | None:
+    root = project_root()
+    candidates = []
+    if user_path:
+        candidates.append(Path(user_path))
+    candidates.extend(
+        [
+            root / "data" / CROSS_DATASET_NAME,
+            root / CROSS_DATASET_NAME,
+            root.parent / CROSS_DATASET_NAME,
+            Path.cwd() / CROSS_DATASET_NAME,
+        ]
+    )
+    for path in candidates:
+        if path.exists():
+            return path.resolve()
+    return None
+
+
 def make_output_dirs(root: Path) -> dict[str, Path]:
     output = root / "outputs"
     dirs = {
@@ -101,10 +123,31 @@ def make_output_dirs(root: Path) -> dict[str, Path]:
 
 def load_data(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     df = pd.read_csv(path)
-    if TARGET not in df.columns:
-        raise ValueError(f"Kolom target '{TARGET}' tidak ditemukan.")
-    X = df.drop(columns=[TARGET])
-    y = df[TARGET].astype(int)
+    if SOURCE_TARGET in df.columns:
+        X = df.drop(columns=[SOURCE_TARGET])
+        y = (df[SOURCE_TARGET].astype(int) > 0).astype(int)
+    elif TARGET in df.columns:
+        X = df.drop(columns=[TARGET])
+        y = df[TARGET].astype(int)
+    else:
+        raise ValueError(f"Kolom target '{SOURCE_TARGET}' atau '{TARGET}' tidak ditemukan.")
+    processed_df = X.copy()
+    processed_df[TARGET] = y
+    return processed_df, X, y
+
+
+def load_cross_dataset(path: Path, expected_features: list[str]) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
+    df = pd.read_csv(path)
+    missing = [col for col in expected_features if col not in df.columns]
+    if missing:
+        raise ValueError(f"Cross dataset tidak memiliki fitur berikut: {missing}")
+    X = df[expected_features].copy()
+    if CROSS_TARGET in df.columns:
+        y = df[CROSS_TARGET].astype(int)
+    elif SOURCE_TARGET in df.columns:
+        y = (df[SOURCE_TARGET].astype(int) > 0).astype(int)
+    else:
+        raise ValueError(f"Kolom target '{CROSS_TARGET}' atau '{SOURCE_TARGET}' tidak ditemukan pada cross dataset.")
     return df, X, y
 
 
@@ -881,9 +924,52 @@ def run_hyperparameter_sensitivity(
     return sensitivity_df
 
 
+def run_cross_dataset_evaluation(
+    results: list[EvaluationResult],
+    X_cross: pd.DataFrame,
+    y_cross: pd.Series,
+    out_dirs: dict[str, Path],
+    feature_sets: dict[str, list[str]] | None = None,
+) -> pd.DataFrame:
+    rows = []
+    for result in results:
+        features = feature_sets.get(result.name, list(X_cross.columns)) if feature_sets else list(X_cross.columns)
+        start = time.perf_counter()
+        pred = result.estimator.predict(X_cross[features])
+        score = probability_scores(result.estimator, X_cross[features])
+        inference_seconds = time.perf_counter() - start
+        rows.append(
+            {
+                "model": result.name,
+                "accuracy": accuracy_score(y_cross, pred),
+                "precision": precision_score(y_cross, pred, zero_division=0),
+                "recall": recall_score(y_cross, pred, zero_division=0),
+                "f1": f1_score(y_cross, pred, zero_division=0),
+                "roc_auc": roc_auc_score(y_cross, score),
+                "inference_seconds": inference_seconds,
+            }
+        )
+
+    cross_df = pd.DataFrame(rows).sort_values("f1", ascending=False)
+    cross_df.to_csv(out_dirs["output"] / "cross_dataset_evaluation.csv", index=False)
+
+    plt.figure(figsize=(9, 5))
+    melted = cross_df.melt(id_vars="model", value_vars=["accuracy", "precision", "recall", "f1", "roc_auc"])
+    sns.barplot(data=melted, x="value", y="model", hue="variable")
+    plt.xlim(0, 1)
+    plt.title("Cross-Dataset Evaluation pada BRFSS 2015 Diabetes 012")
+    plt.xlabel("Skor")
+    plt.ylabel("")
+    plt.tight_layout()
+    plt.savefig(out_dirs["plots"] / "cross_dataset_evaluation.png", dpi=160)
+    plt.close()
+    return cross_df
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Eksperimen komparatif ML, DL, dan GA untuk diabetes BRFSS 2015.")
     parser.add_argument("--data", default=None, help="Path ke CSV dataset.")
+    parser.add_argument("--cross-data", default=None, help="Path ke CSV dataset eksternal untuk cross-dataset evaluation.")
     parser.add_argument("--test-size", type=float, default=0.2)
     parser.add_argument("--deep-epochs", type=int, default=25)
     parser.add_argument("--ga-generations", type=int, default=8)
@@ -969,6 +1055,24 @@ def main() -> None:
     save_permutation_importance(final_best, X_test, y_test, out_dirs, selected_features=selected_features)
     ablation_df = run_ablation_study(X_train, y_train, X_test, y_test, out_dirs)
     sensitivity_df = run_hyperparameter_sensitivity(X_train, y_train, X_test, y_test, out_dirs)
+    cross_dataset_path = resolve_cross_dataset_path(args.cross_data)
+    cross_df = pd.DataFrame()
+    cross_info: dict[str, Any] | str
+    if cross_dataset_path:
+        cross_raw_df, X_cross, y_cross = load_cross_dataset(cross_dataset_path, list(X.columns))
+        cross_df = run_cross_dataset_evaluation(results, X_cross, y_cross, out_dirs, feature_sets=feature_sets)
+        original_cross_target = CROSS_TARGET if CROSS_TARGET in cross_raw_df.columns else SOURCE_TARGET
+        cross_info = {
+            "dataset": str(cross_dataset_path),
+            "rows": int(cross_raw_df.shape[0]),
+            "original_target": original_cross_target,
+            "original_target_distribution": cross_raw_df[original_cross_target].value_counts().sort_index().to_dict(),
+            "binary_target_mapping": "Jika target Diabetes_012, nilai 0 menjadi 0 dan nilai 1 atau 2 menjadi 1. Jika target Diabetes_binary, nilai target digunakan langsung.",
+            "binary_target_distribution": y_cross.value_counts().sort_index().to_dict(),
+            "metrics": cross_df.to_dict(orient="records"),
+        }
+    else:
+        cross_info = "Tidak dilakukan karena file cross dataset tidak ditemukan."
 
     with open(out_dirs["models"] / "best_model.pkl", "wb") as f:
         pickle.dump(final_best.estimator, f)
@@ -978,6 +1082,7 @@ def main() -> None:
         "dataset": str(dataset_path),
         "rows": int(df.shape[0]),
         "columns": int(df.shape[1]),
+        "target_mapping": "Dataset utama memakai Diabetes_012 yang dikonversi menjadi biner: 0 tetap 0, sedangkan 1 dan 2 menjadi 1.",
         "target_distribution": y.value_counts().sort_index().to_dict(),
         "best_baseline": best_baseline.name,
         "best_final": final_best.name,
@@ -985,13 +1090,16 @@ def main() -> None:
         "metrics": metrics_df.to_dict(orient="records"),
         "ablation_study": ablation_df.to_dict(orient="records"),
         "hyperparameter_sensitivity": sensitivity_df.to_dict(orient="records"),
-        "cross_dataset_evaluation": "Tidak dilakukan karena workspace hanya menyediakan satu file dataset BRFSS 2015 50:50 split.",
+        "cross_dataset_evaluation": cross_info,
     }
     with open(out_dirs["output"] / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
     print("\nFinal ranking:")
     print(metrics_df.to_string(index=False))
+    if not cross_df.empty:
+        print("\nCross-dataset ranking:")
+        print(cross_df.to_string(index=False))
     print(f"\nOutputs saved to: {out_dirs['output']}")
 
 
