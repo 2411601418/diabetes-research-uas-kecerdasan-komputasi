@@ -1,0 +1,239 @@
+{
+  "dataset": "G:\\My Drive\\Kuliah\\Semester 3\\Kecerdasan Komputasi\\UAS\\diabetes_binary_5050split_health_indicators_BRFSS2015.csv",
+  "rows": 70692,
+  "columns": 22,
+  "target_distribution": {
+    "0": 35346,
+    "1": 35346
+  },
+  "best_baseline": "Histogram Gradient Boosting",
+  "best_final": "Histogram Gradient Boosting",
+  "ga_info": {
+    "family": "hgb",
+    "params": {
+      "learning_rate": 0.053565428531276646,
+      "max_iter": 160,
+      "max_leaf_nodes": 45,
+      "l2_regularization": 0.04204235396868849
+    },
+    "selected_features": [
+      "HighBP",
+      "HighChol",
+      "BMI",
+      "Smoker",
+      "Stroke",
+      "HeartDiseaseorAttack",
+      "HvyAlcoholConsump",
+      "AnyHealthcare",
+      "GenHlth",
+      "PhysHlth",
+      "Sex",
+      "Age",
+      "Education",
+      "Income"
+    ],
+    "fitness": 0.7702199294950579
+  },
+  "metrics": [
+    {
+      "model": "Histogram Gradient Boosting",
+      "accuracy": 0.7544380790720702,
+      "precision": 0.7333592837680031,
+      "recall": 0.7995473192813694,
+      "f1": 0.7650243638332431,
+      "roc_auc": 0.8301504587133934,
+      "train_seconds": 1.8615278000361286,
+      "inference_seconds": 0.04203439998673275
+    },
+    {
+      "model": "Residual MLP",
+      "accuracy": 0.7512553928849283,
+      "precision": 0.726530612244898,
+      "recall": 0.8057716791625407,
+      "f1": 0.7641022201354887,
+      "roc_auc": 0.8289445540152504,
+      "train_seconds": 4.078071299998555,
+      "inference_seconds": 0.03236569999717176
+    },
+    {
+      "model": "MLP",
+      "accuracy": 0.7516090246834995,
+      "precision": 0.7319076802712218,
+      "recall": 0.7940302730230584,
+      "f1": 0.7617044375084815,
+      "roc_auc": 0.8278184947205591,
+      "train_seconds": 1.12772709998535,
+      "inference_seconds": 0.012149000016506761
+    },
+    {
+      "model": "GA Optimized hgb",
+      "accuracy": 0.7509017610863569,
+      "precision": 0.7310749185667752,
+      "recall": 0.7937473475739143,
+      "f1": 0.7611231687466088,
+      "roc_auc": 0.8275671732846345,
+      "train_seconds": 0.4947774999891408,
+      "inference_seconds": 0.04130450001684949
+    },
+    {
+      "model": "Random Forest",
+      "accuracy": 0.7443242096329302,
+      "precision": 0.7252804591703627,
+      "recall": 0.7865327486207384,
+      "f1": 0.7546657617916526,
+      "roc_auc": 0.8241005061644334,
+      "train_seconds": 0.8832699999911711,
+      "inference_seconds": 0.14541840000310913
+    },
+    {
+      "model": "Logistic Regression",
+      "accuracy": 0.7458094631869298,
+      "precision": 0.7372013651877133,
+      "recall": 0.7638987126892064,
+      "f1": 0.7503126302626094,
+      "roc_auc": 0.8232188552404137,
+      "train_seconds": 0.03601739997975528,
+      "inference_seconds": 0.0038440999924205244
+    }
+  ],
+  "ablation_study": [
+    {
+      "setting": "all_features",
+      "n_features": 21,
+      "accuracy": 0.7544380790720702,
+      "precision": 0.7333592837680031,
+      "recall": 0.7995473192813694,
+      "f1": 0.7650243638332431,
+      "roc_auc": 0.8301504587133934,
+      "train_seconds": 0.4703369000344537,
+      "f1_delta_vs_all_features": 0.0
+    },
+    {
+      "setting": "without_health_condition",
+      "n_features": 13,
+      "accuracy": 0.7109413678477968,
+      "precision": 0.6940395627277459,
+      "recall": 0.7544207101428774,
+      "f1": 0.7229715989968142,
+      "roc_auc": 0.7852561625824891,
+      "train_seconds": 0.3258559000096284,
+      "f1_delta_vs_all_features": -0.042052764836428946
+    },
+    {
+      "setting": "without_lifestyle",
+      "n_features": 15,
+      "accuracy": 0.7373223000212179,
+      "precision": 0.7121537877829771,
+      "recall": 0.7965766020653557,
+      "f1": 0.7520032051282052,
+      "roc_auc": 0.814113477916108,
+      "train_seconds": 0.4266065999981947,
+      "f1_delta_vs_all_features": -0.01302115870503795
+    },
+    {
+      "setting": "without_healthcare_access",
+      "n_features": 18,
+      "accuracy": 0.7523162882806422,
+      "precision": 0.7314730694354316,
+      "recall": 0.7972839156882161,
+      "f1": 0.762961960200352,
+      "roc_auc": 0.8284412408461911,
+      "train_seconds": 0.4289417999680154,
+      "f1_delta_vs_all_features": -0.002062403632891119
+    },
+    {
+      "setting": "without_demographic",
+      "n_features": 17,
+      "accuracy": 0.7410707970860739,
+      "precision": 0.7250396196513471,
+      "recall": 0.7766303579006931,
+      "f1": 0.7499487739908476,
+      "roc_auc": 0.817571121035067,
+      "train_seconds": 0.3688195999711752,
+      "f1_delta_vs_all_features": -0.015075589842395543
+    }
+  ],
+  "hyperparameter_sensitivity": [
+    {
+      "parameter": "learning_rate",
+      "value": 0.03,
+      "accuracy": 0.7544380790720702,
+      "precision": 0.7332382310984308,
+      "recall": 0.7998302447305136,
+      "f1": 0.7650879566982408,
+      "roc_auc": 0.8304232596733392,
+      "train_seconds": 0.8125436999835074
+    },
+    {
+      "parameter": "learning_rate",
+      "value": 0.06,
+      "accuracy": 0.7544380790720702,
+      "precision": 0.7333592837680031,
+      "recall": 0.7995473192813694,
+      "f1": 0.7650243638332431,
+      "roc_auc": 0.8301504587133934,
+      "train_seconds": 0.617705799988471
+    },
+    {
+      "parameter": "learning_rate",
+      "value": 0.1,
+      "accuracy": 0.7545795317914987,
+      "precision": 0.7335496430889034,
+      "recall": 0.7995473192813694,
+      "f1": 0.7651279274400975,
+      "roc_auc": 0.8299030590163679,
+      "train_seconds": 0.4159378999611363
+    },
+    {
+      "parameter": "learning_rate",
+      "value": 0.15,
+      "accuracy": 0.7523162882806422,
+      "precision": 0.7305157037611477,
+      "recall": 0.7995473192813694,
+      "f1": 0.7634742671889775,
+      "roc_auc": 0.8291097772752438,
+      "train_seconds": 0.28132380003808066
+    },
+    {
+      "parameter": "max_leaf_nodes",
+      "value": 15.0,
+      "accuracy": 0.7528113727986421,
+      "precision": 0.7306997159824425,
+      "recall": 0.800679021077946,
+      "f1": 0.7640904488693891,
+      "roc_auc": 0.8297868074704325,
+      "train_seconds": 0.4434111000155099
+    },
+    {
+      "parameter": "max_leaf_nodes",
+      "value": 31.0,
+      "accuracy": 0.7544380790720702,
+      "precision": 0.7333592837680031,
+      "recall": 0.7995473192813694,
+      "f1": 0.7650243638332431,
+      "roc_auc": 0.8301504587133934,
+      "train_seconds": 0.5026625999598764
+    },
+    {
+      "parameter": "max_leaf_nodes",
+      "value": 45.0,
+      "accuracy": 0.7529528255180706,
+      "precision": 0.7332376728411166,
+      "recall": 0.795161974819635,
+      "f1": 0.7629453681710214,
+      "roc_auc": 0.8301630843115837,
+      "train_seconds": 0.5374521999619901
+    },
+    {
+      "parameter": "max_leaf_nodes",
+      "value": 63.0,
+      "accuracy": 0.7523870146403565,
+      "precision": 0.7318689888224591,
+      "recall": 0.7965766020653557,
+      "f1": 0.7628530786425524,
+      "roc_auc": 0.829384569117947,
+      "train_seconds": 0.6108070000191219
+    }
+  ],
+  "cross_dataset_evaluation": "Tidak dilakukan karena workspace hanya menyediakan satu file dataset BRFSS 2015 50:50 split."
+}

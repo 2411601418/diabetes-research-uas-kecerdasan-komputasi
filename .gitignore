@@ -1,0 +1,12 @@
+__pycache__/
+.venv/
+venv/
+.env
+.idea/
+.vscode/
+
+data/*.csv
+outputs/models/
+*.pkl
+*.pt
+*.joblib

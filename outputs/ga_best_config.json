@@ -1,0 +1,26 @@
+{
+  "family": "hgb",
+  "params": {
+    "learning_rate": 0.053565428531276646,
+    "max_iter": 160,
+    "max_leaf_nodes": 45,
+    "l2_regularization": 0.04204235396868849
+  },
+  "selected_features": [
+    "HighBP",
+    "HighChol",
+    "BMI",
+    "Smoker",
+    "Stroke",
+    "HeartDiseaseorAttack",
+    "HvyAlcoholConsump",
+    "AnyHealthcare",
+    "GenHlth",
+    "PhysHlth",
+    "Sex",
+    "Age",
+    "Education",
+    "Income"
+  ],
+  "fitness": 0.7702199294950579
+}
