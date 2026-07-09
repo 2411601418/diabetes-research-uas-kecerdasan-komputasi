@@ -1,24 +1,22 @@
 {
   "family": "mlp",
   "params": {
-    "hidden_dim": 64,
+    "hidden_dim": 128,
     "hidden_dim_2": 32,
     "residual_blocks": 2,
-    "dropout": 0.2095297769778212,
+    "dropout": 0.4079309401710595,
     "lr": 0.0010385561073110751,
-    "weight_decay": 0.0016848444923623154,
-    "batch_size": 256
+    "weight_decay": 4.785847296071546e-06,
+    "batch_size": 128
   },
   "selected_features": [
     "HighBP",
     "HighChol",
-    "CholCheck",
     "BMI",
     "Smoker",
     "HeartDiseaseorAttack",
     "PhysActivity",
     "Veggies",
-    "HvyAlcoholConsump",
     "AnyHealthcare",
     "NoDocbcCost",
     "GenHlth",
@@ -27,8 +25,7 @@
     "DiffWalk",
     "Sex",
     "Age",
-    "Education",
-    "Income"
+    "Education"
   ],
-  "fitness": 0.45610297082671425
+  "fitness": 0.47316576726273796
 }

@@ -5,7 +5,10 @@ import json
 import math
 import pickle
 import random
+import shutil
+import sys
 import time
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -39,6 +42,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.exceptions import ConvergenceWarning
 
 
 RANDOM_STATE = 42
@@ -53,6 +57,94 @@ FEATURE_GROUPS = {
     "healthcare_access": ["CholCheck", "AnyHealthcare", "NoDocbcCost"],
     "demographic": ["Sex", "Age", "Education", "Income"],
 }
+
+
+class Console:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    CYAN = "\033[36m"
+
+    def __init__(self) -> None:
+        self.use_color = sys.stdout.isatty()
+
+    def c(self, text: str, color: str) -> str:
+        if not self.use_color:
+            return text
+        return f"{color}{text}{self.RESET}"
+
+    def title(self, text: str) -> None:
+        width = min(max(shutil.get_terminal_size((100, 20)).columns, 72), 110)
+        print()
+        print(self.c("=" * width, self.CYAN))
+        print(self.c(text.center(width), self.BOLD + self.CYAN))
+        print(self.c("=" * width, self.CYAN))
+
+    def section(self, text: str) -> None:
+        print()
+        print(self.c(f"[ {text} ]", self.BOLD + self.BLUE))
+
+    def info(self, label: str, value: Any) -> None:
+        raw_label = f"{label}:"
+        padding = " " * max(1, 28 - len(raw_label))
+        print(f"  {self.c(raw_label, self.BOLD)}{padding} {value}")
+
+    def success(self, text: str) -> None:
+        print(self.c(f"  OK  {text}", self.GREEN))
+
+    def note(self, text: str) -> None:
+        print(self.c(f"  --  {text}", self.DIM))
+
+    def progress(self, label: str, current: int, total: int, suffix: str = "") -> None:
+        total = max(total, 1)
+        width = 28
+        done = min(width, int(width * current / total))
+        bar = "#" * done + "." * (width - done)
+        percent = min(100, int(100 * current / total))
+        message = f"\r  {label:<24} [{bar}] {current:>3}/{total:<3} {percent:>3}%"
+        if suffix:
+            message += f"  {suffix}"
+        print(message[: shutil.get_terminal_size((100, 20)).columns - 1], end="", flush=True)
+
+    def clear_progress(self) -> None:
+        print("\r" + " " * (shutil.get_terminal_size((100, 20)).columns - 1) + "\r", end="")
+
+
+def format_seconds(value: float) -> str:
+    if value < 1:
+        return f"{value * 1000:.0f} ms"
+    return f"{value:.2f} s"
+
+
+def format_table(df: pd.DataFrame, columns: list[str], ranking: bool = False) -> str:
+    display = df.loc[:, columns].copy()
+    if ranking:
+        display.insert(0, "rank", range(1, len(display) + 1))
+
+    formatted: list[dict[str, str]] = []
+    for _, row in display.iterrows():
+        item = {}
+        for column, value in row.items():
+            if isinstance(value, float):
+                item[column] = format_seconds(value) if column.endswith("seconds") else f"{value:.4f}"
+            else:
+                item[column] = str(value)
+        formatted.append(item)
+
+    headers = list(display.columns)
+    widths = {
+        header: max(len(header), *(len(row[header]) for row in formatted)) if formatted else len(header)
+        for header in headers
+    }
+    rule = "+-" + "-+-".join("-" * widths[header] for header in headers) + "-+"
+    lines = [rule, "| " + " | ".join(header.ljust(widths[header]) for header in headers) + " |", rule]
+    for row in formatted:
+        lines.append("| " + " | ".join(row[header].ljust(widths[header]) for header in headers) + " |")
+    lines.append(rule)
+    return "\n".join(lines)
 
 
 def set_seed(seed: int = RANDOM_STATE) -> None:
@@ -396,7 +488,9 @@ else:
                 random_state=self.random_state,
                 verbose=self.verbose,
             )
-            self.model_.fit(X, y)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=ConvergenceWarning)
+                self.model_.fit(X, y)
             self.classes_ = self.model_.classes_
             return self
 
@@ -659,6 +753,7 @@ def run_ga_optimization(
     y_test: pd.Series,
     args: argparse.Namespace,
     out_dirs: dict[str, Path],
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> tuple[EvaluationResult, dict[str, Any], pd.DataFrame]:
     X_sub, X_val, y_sub, y_val = train_test_split(
         X_train,
@@ -669,8 +764,11 @@ def run_ga_optimization(
     )
     population = [random_individual(len(feature_names), family) for _ in range(args.ga_population)]
     history = []
+    current_generation = 0
+    evaluated_this_generation = 0
 
     def fitness(ind: dict[str, Any]) -> float:
+        nonlocal evaluated_this_generation
         if ind["fitness"] is not None:
             return ind["fitness"]
         cols = [feature_names[i] for i, keep in enumerate(ind["mask"]) if keep]
@@ -682,9 +780,27 @@ def run_ga_optimization(
         auc = roc_auc_score(y_val, score)
         feature_penalty = 0.015 * (len(cols) / len(feature_names))
         ind["fitness"] = (0.7 * f1) + (0.3 * auc) - feature_penalty
+        evaluated_this_generation += 1
+        if progress_callback:
+            progress_callback(
+                "ga_candidate",
+                {
+                    "generation": current_generation,
+                    "evaluated": evaluated_this_generation,
+                    "population": args.ga_population,
+                    "features": len(cols),
+                },
+            )
         return ind["fitness"]
 
     for generation in range(args.ga_generations):
+        current_generation = generation + 1
+        evaluated_this_generation = 0
+        if progress_callback:
+            progress_callback(
+                "ga_generation_start",
+                {"generation": current_generation, "generations": args.ga_generations},
+            )
         population.sort(key=fitness, reverse=True)
         best = population[0]
         history.append(
@@ -694,6 +810,17 @@ def run_ga_optimization(
                 "selected_features": int(best["mask"].sum()),
             }
         )
+        if progress_callback:
+            progress_callback(
+                "ga_generation_end",
+                {
+                    "generation": current_generation,
+                    "generations": args.ga_generations,
+                    "best_fitness": fitness(best),
+                    "features": int(best["mask"].sum()),
+                    "evaluated": evaluated_this_generation,
+                },
+            )
 
         elites = population[: max(2, args.ga_population // 5)]
         children = [dict(mask=e["mask"].copy(), params=dict(e["params"]), fitness=e["fitness"]) for e in elites]
@@ -704,10 +831,19 @@ def run_ga_optimization(
             children.append(child)
         population = children
 
+    current_generation = args.ga_generations
+    evaluated_this_generation = 0
+    if progress_callback:
+        progress_callback("ga_final_select_start", {"population": args.ga_population})
     population.sort(key=fitness, reverse=True)
     best = population[0]
     selected_cols = [feature_names[i] for i, keep in enumerate(best["mask"]) if keep]
     best_estimator = build_ga_estimator(family, best["params"], args.deep_epochs)
+    if progress_callback:
+        progress_callback(
+            "ga_final_train_start",
+            {"features": len(selected_cols), "fitness": float(best["fitness"])},
+        )
     result = evaluate_estimator(
         "GA Optimized " + family,
         best_estimator,
@@ -716,6 +852,16 @@ def run_ga_optimization(
         X_test[selected_cols],
         y_test,
     )
+    if progress_callback:
+        progress_callback(
+            "ga_final_train_end",
+            {
+                "model": result.name,
+                "f1": result.metrics["f1"],
+                "roc_auc": result.metrics["roc_auc"],
+                "seconds": result.train_seconds,
+            },
+        )
 
     history_df = pd.DataFrame(history)
     history_df.to_csv(out_dirs["output"] / "ga_history.csv", index=False)
@@ -982,6 +1128,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    console = Console()
     if args.quick:
         args.deep_epochs = min(args.deep_epochs, 8)
         args.ga_generations = min(args.ga_generations, 3)
@@ -1003,27 +1150,84 @@ def main() -> None:
         random_state=RANDOM_STATE,
     )
 
-    print(f"Dataset: {dataset_path}")
-    print(f"Shape: {df.shape}, train: {X_train.shape}, test: {X_test.shape}")
+    console.title("DIABETES PREDICTION EXPERIMENT")
+    console.section("Dataset")
+    console.info("File", dataset_path)
+    console.info("Rows x columns", f"{df.shape[0]:,} x {df.shape[1]}")
+    console.info("Train shape", f"{X_train.shape[0]:,} x {X_train.shape[1]}")
+    console.info("Test shape", f"{X_test.shape[0]:,} x {X_test.shape[1]}")
+    console.info("Positive target", f"{int(y.sum()):,} ({y.mean() * 100:.2f}%)")
     if TORCH_AVAILABLE:
-        print(f"Device PyTorch: {'cuda' if torch.cuda.is_available() else 'cpu'}")
+        console.info("PyTorch device", "cuda" if torch.cuda.is_available() else "cpu")
     else:
-        print("Device PyTorch: unavailable, using sklearn MLP fallback")
+        console.info("PyTorch device", "unavailable; using sklearn MLP fallback")
+        console.note("MLP convergence warnings are hidden because GA intentionally uses short training runs.")
 
     results: list[EvaluationResult] = []
+    baseline_rows = []
+    console.section("Baseline Models")
     for name, estimator in build_baseline_models(args).items():
-        print(f"Training {name}...")
+        print(f"  RUN {name} ...", flush=True)
         result = evaluate_estimator(name, estimator, X_train, y_train, X_test, y_test)
         results.append(result)
-        print(
+        baseline_rows.append(
+            {
+                "model": result.name,
+                "f1": result.metrics["f1"],
+                "roc_auc": result.metrics["roc_auc"],
+                "train_seconds": result.train_seconds,
+            }
+        )
+        console.success(
             f"{name}: f1={result.metrics['f1']:.4f}, "
             f"roc_auc={result.metrics['roc_auc']:.4f}, "
-            f"time={result.train_seconds:.2f}s"
+            f"train={format_seconds(result.train_seconds)}"
         )
+
+    baseline_df = pd.DataFrame(baseline_rows).sort_values("f1", ascending=False)
+    print()
+    print(format_table(baseline_df, ["model", "f1", "roc_auc", "train_seconds"], ranking=True))
 
     best_baseline = max(results, key=lambda r: (r.metrics["f1"], r.metrics["roc_auc"]))
     family = model_family(best_baseline.name)
-    print(f"Best baseline: {best_baseline.name}. Running GA optimization for {family}...")
+
+    def show_ga_progress(event: str, payload: dict[str, Any]) -> None:
+        if event == "ga_generation_start":
+            print(f"  GEN {payload['generation']}/{payload['generations']} evaluating candidates...")
+        elif event == "ga_candidate":
+            console.progress(
+                f"Gen {payload['generation']}",
+                payload["evaluated"],
+                payload["population"],
+                suffix=f"features={payload['features']}",
+            )
+        elif event == "ga_generation_end":
+            console.clear_progress()
+            console.success(
+                f"Gen {payload['generation']}/{payload['generations']}: "
+                f"best_fitness={payload['best_fitness']:.4f}, "
+                f"features={payload['features']}, "
+                f"trained={payload['evaluated']}"
+            )
+        elif event == "ga_final_select_start":
+            print("  RUN Selecting best GA candidate...")
+        elif event == "ga_final_train_start":
+            console.success(
+                f"Best GA candidate: fitness={payload['fitness']:.4f}, "
+                f"selected_features={payload['features']}"
+            )
+            print("  RUN Training final GA-optimized model...")
+        elif event == "ga_final_train_end":
+            console.success(
+                f"{payload['model']}: f1={payload['f1']:.4f}, "
+                f"roc_auc={payload['roc_auc']:.4f}, "
+                f"train={format_seconds(payload['seconds'])}"
+            )
+
+    console.section("Genetic Algorithm Optimization")
+    console.info("Best baseline", best_baseline.name)
+    console.info("Optimized family", family)
+    console.info("GA setup", f"{args.ga_generations} generations x {args.ga_population} population")
     ga_result, ga_info, _ = run_ga_optimization(
         family,
         list(X.columns),
@@ -1033,6 +1237,7 @@ def main() -> None:
         y_test,
         args,
         out_dirs,
+        progress_callback=show_ga_progress,
     )
     results.append(ga_result)
 
@@ -1051,16 +1256,27 @@ def main() -> None:
     final_best = max(results, key=lambda r: (r.metrics["f1"], r.metrics["roc_auc"]))
     selected_features = ga_info["selected_features"] if final_best.name.startswith("GA Optimized") else None
     feature_sets = {ga_result.name: ga_info["selected_features"]}
+    console.section("Analysis Artifacts")
+    print("  RUN Saving comparison plots and confusion matrices...")
     plot_results(results, X_test, y_test, out_dirs, feature_sets=feature_sets)
+    console.success("Plots saved")
+    print("  RUN Calculating permutation importance...")
     save_permutation_importance(final_best, X_test, y_test, out_dirs, selected_features=selected_features)
+    console.success("Permutation importance saved")
+    print("  RUN Running ablation study...")
     ablation_df = run_ablation_study(X_train, y_train, X_test, y_test, out_dirs)
+    console.success("Ablation study saved")
+    print("  RUN Running hyperparameter sensitivity...")
     sensitivity_df = run_hyperparameter_sensitivity(X_train, y_train, X_test, y_test, out_dirs)
+    console.success("Hyperparameter sensitivity saved")
     cross_dataset_path = resolve_cross_dataset_path(args.cross_data)
     cross_df = pd.DataFrame()
     cross_info: dict[str, Any] | str
     if cross_dataset_path:
+        print("  RUN Running cross-dataset evaluation...")
         cross_raw_df, X_cross, y_cross = load_cross_dataset(cross_dataset_path, list(X.columns))
         cross_df = run_cross_dataset_evaluation(results, X_cross, y_cross, out_dirs, feature_sets=feature_sets)
+        console.success("Cross-dataset evaluation saved")
         original_cross_target = CROSS_TARGET if CROSS_TARGET in cross_raw_df.columns else SOURCE_TARGET
         cross_info = {
             "dataset": str(cross_dataset_path),
@@ -1095,12 +1311,22 @@ def main() -> None:
     with open(out_dirs["output"] / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
-    print("\nFinal ranking:")
-    print(metrics_df.to_string(index=False))
+    console.section("Final Ranking")
+    print(format_table(
+        metrics_df,
+        ["model", "accuracy", "precision", "recall", "f1", "roc_auc", "train_seconds", "inference_seconds"],
+        ranking=True,
+    ))
     if not cross_df.empty:
-        print("\nCross-dataset ranking:")
-        print(cross_df.to_string(index=False))
-    print(f"\nOutputs saved to: {out_dirs['output']}")
+        console.section("Cross-Dataset Ranking")
+        print(format_table(
+            cross_df,
+            ["model", "accuracy", "precision", "recall", "f1", "roc_auc", "inference_seconds"],
+            ranking=True,
+        ))
+    console.section("Saved Outputs")
+    console.info("Folder", out_dirs["output"])
+    console.info("Best final model", final_best.name)
 
 
 if __name__ == "__main__":
