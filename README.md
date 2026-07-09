@@ -25,7 +25,7 @@ Dataset utama memiliki 253.680 baris dan 22 kolom. Setelah target `Diabetes_012`
 | 0 | Non-diabetes | 213.703 |
 | 1 | Prediabetes atau diabetes | 39.977 |
 
-Dataset ini lebih tidak seimbang dibanding versi 50:50. Karena itu, accuracy tidak cukup untuk membaca performa. F1-score, recall, precision, dan ROC-AUC menjadi lebih penting.
+Dataset ini tidak seimbang. Karena itu, accuracy tidak cukup untuk membaca performa. F1-score, recall, precision, dan ROC-AUC menjadi lebih penting.
 
 Fitur yang tersedia:
 
@@ -38,17 +38,21 @@ Fitur yang tersedia:
 
 ## Analisis dataset
 
-Distribusi kelas pada dataset utama tidak seimbang. Kelas positif hanya sekitar 15,76% dari total data. Kondisi ini membuat F1-score terlihat jauh lebih rendah dibanding eksperimen pada dataset 50:50, meskipun ROC-AUC tetap cukup tinggi.
+Distribusi kelas pada dataset utama tidak seimbang. Kelas positif hanya sekitar 15,76% dari total data. Kondisi ini membuat F1-score terlihat rendah meskipun ROC-AUC tetap cukup tinggi.
 
-![Distribusi Kelas](outputs/plots/class_distribution.png)
+![Distribusi Kelas](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/class_distribution.png)
 
 Heatmap korelasi memberi gambaran awal bahwa fitur seperti `GenHlth`, `BMI`, `Age`, `HighBP`, dan `HighChol` masih relevan dengan target.
 
-![Heatmap Korelasi](outputs/plots/correlation_heatmap.png)
+![Heatmap Korelasi](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/correlation_heatmap.png)
 
 ## Metodologi eksperimen
 
-Data dibagi menggunakan stratified split 80:20 dengan random state 42. Standardisasi fitur dilakukan menggunakan `StandardScaler` di dalam pipeline. Model dievaluasi dengan accuracy, precision, recall, F1-score, ROC-AUC, waktu training, dan waktu inference.
+Data utama dibagi menggunakan stratified split 80:20 dengan random state 42. Sebanyak 80% data digunakan sebagai training set dan 20% digunakan sebagai testing set akhir. Stratifikasi menjaga proporsi kelas 0 dan 1 tetap serupa pada kedua bagian data.
+
+Pada model ANN/deep learning, training set masih dibagi lagi secara internal: 85% untuk pelatihan bobot dan 15% untuk validation set early stopping. Pada optimasi Genetic Algorithm, training set 80% dibagi menjadi 75% sub-training dan 25% validation set untuk menghitung fitness kandidat fitur dan hyperparameter. Setelah konfigurasi GA terbaik dipilih, model dilatih ulang pada training set 80% penuh, lalu dievaluasi pada testing set 20% yang sebelumnya tidak dipakai untuk optimasi. Dengan demikian, evaluasi utama tetap memakai hold-out test set, bukan k-fold cross-validation.
+
+Standardisasi fitur dilakukan menggunakan `StandardScaler` di dalam pipeline agar scaler hanya belajar dari data training. Model dievaluasi dengan accuracy, precision, recall, F1-score, ROC-AUC, waktu training, dan waktu inference.
 
 Model baseline terbaik dipilih berdasarkan F1-score dan ROC-AUC. Model tersebut kemudian dioptimasi menggunakan Genetic Algorithm.
 
@@ -63,7 +67,7 @@ Model baseline terbaik dipilih berdasarkan F1-score dan ROC-AUC. Model tersebut 
 | 5 | Random Forest | 0.8510 | 0.5822 | 0.1931 | 0.2900 | 0.8116 | 5.63s |
 | 6 | Logistic Regression | 0.8481 | 0.5520 | 0.1911 | 0.2839 | 0.8172 | 0.14s |
 
-![Perbandingan Model](outputs/plots/model_comparison.png)
+![Perbandingan Model](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/model_comparison.png)
 
 MLP menjadi model terbaik berdasarkan F1-score, yaitu 0.3087. Histogram Gradient Boosting memiliki ROC-AUC tertinggi, yaitu 0.8243. Nilai F1-score relatif rendah karena dataset utama tidak seimbang dan model cenderung hati-hati dalam menandai kelas positif.
 
@@ -71,7 +75,7 @@ MLP menjadi model terbaik berdasarkan F1-score, yaitu 0.3087. Histogram Gradient
 
 GA diterapkan pada model baseline terbaik, yaitu MLP. Optimasi dilakukan untuk memilih fitur dan hyperparameter. Pada eksperimen ini GA menghasilkan F1-score 0.2940 dan ROC-AUC 0.8237. Skor ini sedikit di bawah MLP baseline, tetapi tetap menunjukkan bahwa pengurangan fitur dapat dilakukan tanpa penurunan ROC-AUC yang besar.
 
-![Konvergensi GA](outputs/plots/ga_convergence.png)
+![Konvergensi GA](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/ga_convergence.png)
 
 ## Interpretabilitas
 
@@ -85,7 +89,7 @@ Permutation importance digunakan untuk melihat fitur yang paling memengaruhi F1-
 | 4 | `HighChol` | 0.0598 |
 | 5 | `Age` | 0.0165 |
 
-![Permutation Importance](outputs/plots/permutation_importance.png)
+![Permutation Importance](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/permutation_importance.png)
 
 Urutan ini masih sesuai dengan konteks kesehatan. BMI, kondisi kesehatan umum, tekanan darah tinggi, kolesterol tinggi, dan usia adalah indikator yang sering berkaitan dengan risiko diabetes.
 
@@ -103,17 +107,17 @@ Ablation study dilakukan pada Histogram Gradient Boosting. Kelompok fitur kondis
 | Tanpa fitur gaya hidup | 15 | 0.2056 | -0.0947 |
 | Tanpa fitur kondisi kesehatan | 13 | 0.1431 | -0.1572 |
 
-![Ablation Study](outputs/plots/ablation_study.png)
+![Ablation Study](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/ablation_study.png)
 
 ### Hyperparameter sensitivity analysis
 
 Sensitivity analysis dilakukan pada Histogram Gradient Boosting dengan mengubah `learning_rate` dan `max_leaf_nodes`.
 
-![Hyperparameter Sensitivity](outputs/plots/hyperparameter_sensitivity.png)
+![Hyperparameter Sensitivity](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/hyperparameter_sensitivity.png)
 
 ### Cross-dataset evaluation
 
-Cross-dataset evaluation dilakukan dengan mengevaluasi model yang dilatih pada dataset utama `diabetes_012` terhadap dataset lama `diabetes_binary_5050split_health_indicators_BRFSS2015.csv`. Dataset lama tidak lagi disimpan di repository, tetapi masih dapat digunakan sebagai dataset eksternal jika tersedia.
+Cross-dataset evaluation dilakukan dengan mengevaluasi model yang sudah dilatih pada training set dataset utama terhadap dataset eksternal pembanding. Dataset eksternal tidak dipakai untuk training, validasi internal, ataupun pemilihan hyperparameter; dataset ini hanya dipakai setelah model selesai dilatih untuk melihat apakah performa tetap stabil ketika distribusi data berbeda dari dataset utama.
 
 | Ranking | Model | Accuracy | Precision | Recall | F1-score | ROC-AUC |
 |---:|---|---:|---:|---:|---:|---:|
@@ -124,23 +128,23 @@ Cross-dataset evaluation dilakukan dengan mengevaluasi model yang dilatih pada d
 | 5 | GA Optimized MLP | 0.5910 | 0.8872 | 0.2085 | 0.3376 | 0.8339 |
 | 6 | Logistic Regression | 0.5833 | 0.8708 | 0.1956 | 0.3195 | 0.8243 |
 
-![Cross Dataset Evaluation](outputs/plots/cross_dataset_evaluation.png)
+![Cross Dataset Evaluation](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/cross_dataset_evaluation.png)
 
-Hasil cross-dataset berbeda dari test set utama. Random Forest menjadi model terbaik pada dataset eksternal dengan F1-score 0.6574 dan ROC-AUC 0.9494. Ini menunjukkan bahwa ranking model dapat berubah ketika distribusi data berubah.
+Hasil cross-dataset berbeda dari test set utama. Random Forest menjadi model terbaik pada dataset eksternal pembanding dengan F1-score 0.6574 dan ROC-AUC 0.9494. Ini menunjukkan bahwa ranking model dapat berubah ketika distribusi data berubah.
 
 ## Confusion matrix
 
 Confusion matrix MLP:
 
-![Confusion Matrix MLP](outputs/plots/confusion_matrix_mlp.png)
+![Confusion Matrix MLP](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/confusion_matrix_mlp.png)
 
 Confusion matrix Histogram Gradient Boosting:
 
-![Confusion Matrix HGB](outputs/plots/confusion_matrix_histogram_gradient_boosting.png)
+![Confusion Matrix HGB](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/confusion_matrix_histogram_gradient_boosting.png)
 
 Confusion matrix model hasil optimasi GA:
 
-![Confusion Matrix GA](outputs/plots/confusion_matrix_ga_optimized_mlp.png)
+![Confusion Matrix GA](https://raw.githubusercontent.com/2411601418/diabetes-research-uas-kecerdasan-komputasi/main/outputs/plots/confusion_matrix_ga_optimized_mlp.png)
 
 ## Kesimpulan
 
@@ -148,7 +152,7 @@ Confusion matrix model hasil optimasi GA:
 - Histogram Gradient Boosting memiliki ROC-AUC tertinggi, yaitu 0.8243, sehingga masih kuat dalam memisahkan kelas positif dan negatif.
 - GA Optimized MLP belum melampaui MLP baseline. F1-score turun dari 0.3087 menjadi 0.2940.
 - Ablation study menunjukkan bahwa fitur kondisi kesehatan paling penting. Saat kelompok fitur ini dihapus, F1-score turun dari 0.3003 menjadi 0.1431.
-- Cross-dataset evaluation menunjukkan perubahan ranking model. Random Forest menjadi model terbaik pada dataset eksternal 50:50 dengan F1-score 0.6574 dan ROC-AUC 0.9494.
+- Cross-dataset evaluation menunjukkan perubahan ranking model. Random Forest menjadi model terbaik pada dataset eksternal pembanding dengan F1-score 0.6574 dan ROC-AUC 0.9494.
 - Dataset yang tidak seimbang membuat accuracy terlihat tinggi, tetapi F1-score dan recall lebih tepat untuk membaca kemampuan model dalam mendeteksi kelas positif.
 
 ## Struktur repository
@@ -189,10 +193,10 @@ Mode ringkas:
 python src/run_experiments.py --quick
 ```
 
-Jika dataset lama tersedia dan ingin dipakai untuk cross-dataset evaluation:
+Jika tersedia dataset eksternal pembanding dengan fitur yang sama dan ingin dipakai untuk cross-dataset evaluation:
 
 ```bash
-python src/run_experiments.py --cross-data path/to/diabetes_binary_5050split_health_indicators_BRFSS2015.csv
+python src/run_experiments.py --cross-data path/to/dataset_eksternal.csv
 ```
 
 ## Output program

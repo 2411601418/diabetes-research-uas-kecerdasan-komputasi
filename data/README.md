@@ -21,4 +21,4 @@ Pada eksperimen, target dikonversi menjadi biner:
 - `0` tetap `0`
 - `1` dan `2` digabung menjadi `1`
 
-File `diabetes_binary_5050split_health_indicators_BRFSS2015.csv` tidak disimpan lagi di repository. Jika file tersebut tersedia secara lokal, script dapat menggunakannya sebagai dataset eksternal untuk cross-dataset evaluation.
+Dataset eksternal pembanding tidak disimpan di repository. Jika tersedia file CSV lain dengan fitur yang sama, script dapat menggunakannya untuk cross-dataset evaluation melalui argumen `--cross-data`.
